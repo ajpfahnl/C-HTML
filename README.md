@@ -153,3 +153,13 @@ Content-Length: 1256
 ### Program exiting...
 ###############################################
 ```
+
+## Useful Resources
+
+* http://fm4dd.com/openssl/sslconnect.shtm
+* https://aticleworld.com/http-get-and-post-methods-example-in-c/
+
+## For Future Consideration
+
+* https://www.libhttp.org/
+* https://uriparser.github.io/ used in https://github.com/reagent/http

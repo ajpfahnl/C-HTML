@@ -293,4 +293,11 @@ int main(int argc, char * argv[]) {
 	if (verbose) {
 		printf("### Program exiting...\n%s", pounds);
 	}
+	
+	if (useTLS) {
+		SSL_free(ssl_client);
+		X509_free(ssl_params->cert);
+		SSL_CTX_free(ssl_params->new_context);
+	}
+	close(sockfd);
 }
