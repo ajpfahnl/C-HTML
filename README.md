@@ -6,7 +6,7 @@ By default, the program will try to connect with OpenSSL. To only use TCP, speci
 
 Simply compile with `make` and then run the program as follows
 ```
-./html_retrieve GET --host=<host> [--portnum=<#>] [--path=<path>] [--verbose] [--useTCP]
+./c-http GET --host=<host> [--portnum=<#>] [--path=<path>] [--verbose] [--useTCP]
 ```
 **This is currently a WIP. Only GET is currently supported.**
 
