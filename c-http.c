@@ -25,8 +25,9 @@ void getopts(int argc, char * argv[]);
 char * http_request = NULL;
 char * address;
 int portnum = -1;
-char * path = NULL;
+char * path = "/";
 int verbose = 0;
+char * msgPOST = "";
 
 // runtime-defined
 static int sockfd;
@@ -37,7 +38,7 @@ SSL_CTX * new_context;
 SSL * ssl_client;
 
 void usage_error() {
-	char usage[] = "usage: ./html_retrieve GET --host=<host> [--portnum=<#>] [--path=<path>] [--verbose] [--useTCP]\n";
+	char usage[] = "usage: ./c-http GET/POST --host=<host> [--port=<#>] [--path=<path>] [--verbose] [--useTCP] [--msg]\n";
 	fprintf(stderr, "%s", usage);
 	exit(1);
 }
@@ -81,6 +82,27 @@ void htmlGET() {
 	if (verbose) {
 		printf("%s### Sending request...\n%s", pounds, pounds);
 		printf("%s", header);
+	}
+	
+	if (useTLS)
+		SSL_write_wrap(ssl_client, header, strlen(header));
+	else
+		write_wrap(sockfd, header, strlen(header), "HTTP header");
+	htmlresponse();
+	free(header);
+}
+
+void htmlPOST(char * msg) {
+	char * header;
+	header = malloc(strlen(address)+strlen(msg)+100);
+	sprintf(header,
+			"POST %s HTTP/1.1\r\nHost: %s\r\n"
+			"Content-Type: text/plain\r\n"
+			"Content-Length: %lu\r\n\r\n%s",
+			path, address, strlen(msg), msg);
+	if (verbose) {
+		printf("%s### Sending request...\n%s", pounds, pounds);
+		printf("%s\n", header);
 	}
 	
 	if (useTLS)
@@ -196,17 +218,18 @@ void htmlresponse() {
 static struct option longopts[] = 
 {
     {"host", required_argument, NULL, 'h'},
-    {"portnum", required_argument, NULL, 'n'},
+    {"port", required_argument, NULL, 'n'},
 	{"verbose", no_argument, NULL, 'v'},
 	{"path", required_argument, NULL, 'p'},
 	{"useTCP", no_argument, NULL, 't'},
+	{"msg", required_argument, NULL, 'm'},
 	{NULL,0,NULL,0}
 };
 
 void getopts(int argc, char * argv[]) {	
 	int host_set=0;
 	int opt;
-	while ((opt = getopt_long(argc, argv, "h:n:v:p", longopts, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "h:n:v:p:m:", longopts, NULL)) != -1) {
 		switch(opt) {
 			case 'h':
 				address = optarg;
@@ -224,6 +247,9 @@ void getopts(int argc, char * argv[]) {
 			case 't':
 				useTLS = 0;
 				break;
+			case 'm':
+				msgPOST = optarg;
+				break;
 			default:
 				usage_error();
 		}
@@ -238,10 +264,6 @@ void getopts(int argc, char * argv[]) {
 	}
 	else if (portnum < 0) {
 		portnum = 80; // HTTP
-	}
-	
-	if (path == NULL) {
-		path = "/";
 	}
     
 	int firstarg = 1;
@@ -261,11 +283,14 @@ void getopts(int argc, char * argv[]) {
 }
 
 int main(int argc, char * argv[]) {
+	// setup
 	getopts(argc, argv);
 	check_method();
 	if (verbose) {
 		printf("HTTP method: %s\n", http_request);
 	}
+	
+	// connection
 	SSL_objects * ssl_params;
 	if (useTLS) {
 		ssl_params = openTLS(address, portnum, verbose);
@@ -276,7 +301,6 @@ int main(int argc, char * argv[]) {
 	else {
 		sockfd = openTCP(address, portnum);
 	}
-	
 	if (verbose) {
 		if (useTLS) {
 			printf("%s### Connected! Displaying certificate subject data...\n%s", pounds, pounds);
@@ -289,11 +313,20 @@ int main(int argc, char * argv[]) {
 		}
 	}
 	
-	htmlGET();
+	// perform request
+	if (strcmp(http_request, "GET") == 0) {
+		htmlGET();
+	}
+	if (strcmp(http_request, "POST") == 0) {
+		htmlPOST(msgPOST);
+	}
+	
+	// end
 	if (verbose) {
 		printf("### Program exiting...\n%s", pounds);
 	}
 	
+	// free things
 	if (useTLS) {
 		SSL_free(ssl_client);
 		X509_free(ssl_params->cert);
