@@ -4,11 +4,22 @@
 #include <errno.h>
 #include <getopt.h>
 #include <poll.h>
+#include <openssl/x509.h>
 #include "common.h"
 
 #define BUFSIZE 4096
+#define SAVESIZE 20
 
-char pounds[] = "###############################################\n";
+void usage_error();
+void check_method();
+struct html_end {
+	int content_len;
+	int chunked; // 0 or 1
+};
+struct html_end check_msg_end_condition(char * header);
+void htmlGET();
+void htmlresponse();
+void getopts(int argc, char * argv[]);
 
 // user-defined
 char * http_request = NULL;
@@ -39,11 +50,6 @@ void check_method() {
 	}
 }
 
-struct html_end {
-	int content_len;
-	int chunked; // 0 or 1
-};
-
 struct html_end check_msg_end_condition(char * header) {
 	struct html_end end_cond;
 	end_cond.content_len = -1;
@@ -69,14 +75,11 @@ struct html_end check_msg_end_condition(char * header) {
 }
 
 void htmlGET() {
-	struct pollfd fds[1];
-    fds[0].fd = sockfd;
-    fds[0].events = POLLIN | POLLHUP | POLLERR;
-	
 	char * header;
 	header = malloc(strlen(address)+50);
 	sprintf(header, "GET %s HTTP/1.1\r\nHost: %s\r\n\r\n", path, address);
 	if (verbose) {
+		printf("%s### Sending request...\n%s", pounds, pounds);
 		printf("%s", header);
 	}
 	
@@ -84,9 +87,22 @@ void htmlGET() {
 		SSL_write_wrap(ssl_client, header, strlen(header));
 	else
 		write_wrap(sockfd, header, strlen(header), "HTTP header");
+	htmlresponse();
+	free(header);
+}
+
+void htmlresponse() {
+	struct pollfd fds[1];			// polling for connection issues
+    fds[0].fd = sockfd;
+    fds[0].events = POLLHUP | POLLERR | POLLIN;
 	
-	char buf[BUFSIZE];
-	int rcount;
+	char buf[BUFSIZE]; 				// Buffer to read in data from socket
+	char lastbuf[SAVESIZE*2+1];		// Buffer to store last few bytes for message end check -
+									// 		Sometimes the last read only takes in a couple bytes,
+									// 		so we need to know what the last few bytes in the
+									//		previous buffer were to determine if the message
+									// 		end condition has been met
+	int rcount, lastbufcount = 0;
 	int firstpass = 1;
 	int use_content_len = 1;
 	struct html_end end_cond;
@@ -119,7 +135,7 @@ void htmlGET() {
 					i += 4;
 					end_cond.content_len -= (rcount - i);
 					if (verbose)
-						printf("%s### Header length is %d bytes\n", pounds, i);
+						printf("### Header length is %d bytes\n%s", i, pounds);
 					break;
 				}
 			}
@@ -131,7 +147,7 @@ void htmlGET() {
 		}
 		
 		if (verbose) {
-			printf("%s### read %d bytes of data into buffer\n%s", pounds, rcount, pounds);
+			printf("\n%s### read %d bytes of data into buffer\n%s", pounds, rcount, pounds);
 		}
 		write_wrap(1, buf, rcount, "to stdout");
 		
@@ -141,11 +157,38 @@ void htmlGET() {
 				printf("%s### Reached end of message\n", pounds);
 			break;
 		}
-		else if ((rcount > 5) && (strncmp(&buf[rcount-5], "0\r\n\r\n", 5) == 0)) {
-			if (verbose)
-				printf("%s### Reached end of message\n", pounds);
-			break;
+		else {
+			int last_bytes_to_check = SAVESIZE; // will never be larger than SAVESIZE * 2
+			if (rcount >= SAVESIZE) {
+				memcpy(lastbuf, &buf[rcount-SAVESIZE], SAVESIZE);
+			}
+			else {
+				memcpy(&lastbuf[lastbufcount], buf, rcount);
+				last_bytes_to_check = lastbufcount + rcount;
+			}
+			
+			int j = last_bytes_to_check-1;
+			int chunk_end = 0;
+			for (; j >= 0; j--) {
+				if (strncmp(&lastbuf[j], "0\r\n\r\n", 5) == 0) {
+					chunk_end = 1;
+				}
+			}
+			if (chunk_end) {
+				if (verbose)
+					printf("%s### Reached end of message\n", pounds);
+				break;
+			}
 		}
+		
+		// copy the last SAVESIZE bytes or less to lastbuf
+		if (rcount >= SAVESIZE) {
+			lastbufcount = SAVESIZE;
+		}
+		else {
+			lastbufcount = rcount;
+		}
+		memcpy(lastbuf, &buf[rcount-lastbufcount], lastbufcount);
 	}
 }
 
@@ -198,8 +241,7 @@ void getopts(int argc, char * argv[]) {
 	}
 	
 	if (path == NULL) {
-		path = malloc(2);
-		strcpy(path, "/");
+		path = "/";
 	}
     
 	int firstarg = 1;
@@ -224,9 +266,9 @@ int main(int argc, char * argv[]) {
 	if (verbose) {
 		printf("HTTP method: %s\n", http_request);
 	}
-	
+	SSL_objects * ssl_params;
 	if (useTLS) {
-		SSL_objects * ssl_params = openTLS(address, portnum, verbose);
+		ssl_params = openTLS(address, portnum, verbose);
 		new_context = ssl_params->new_context;
 		ssl_client = ssl_params->ssl_client;
 		sockfd = ssl_params->sockfd;
@@ -236,11 +278,19 @@ int main(int argc, char * argv[]) {
 	}
 	
 	if (verbose) {
-		printf("%s### Connected!\n%s", pounds, pounds);
+		if (useTLS) {
+			printf("%s### Connected! Displaying certificate subject data...\n%s", pounds, pounds);
+			FILE* fout = stdout;
+			X509_NAME_print_ex_fp(fout, ssl_params->certname, 0, 0);
+			printf("\n");
+		}
+		else{
+			printf("%s### Connected!\n%s", pounds, pounds);
+		}
 	}
 	
 	htmlGET();
 	if (verbose) {
-		printf("%s### Program exiting...\n%s", pounds, pounds);
+		printf("### Program exiting...\n%s", pounds);
 	}
 }

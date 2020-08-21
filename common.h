@@ -3,10 +3,14 @@
 
 #include <stdlib.h>
 #include <openssl/ssl.h>
+
+extern char * pounds;
 struct SSL_objects_struct {
 	SSL_CTX * new_context;
 	SSL * ssl_client;
 	int sockfd;
+	X509 * cert;
+	X509_NAME * certname;
 }; typedef struct SSL_objects_struct SSL_objects;
 
 int openTCP(char * address, int portnum);

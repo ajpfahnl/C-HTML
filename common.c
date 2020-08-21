@@ -9,6 +9,8 @@
 #include <unistd.h>
 #include <openssl/ssl.h>
 
+char *pounds = "###############################################\n";
+
 int openTCP(char * address, int portnum)
 {
 	char portnumstr[256];
@@ -21,6 +23,7 @@ int openTCP(char * address, int portnum)
 	hints.ai_socktype = SOCK_STREAM;
 	if ((err = getaddrinfo(address, portnumstr, &hints, &res0))) {
 		fprintf(stderr, "Error with getaddrinfo(): %s", gai_strerror(err));
+		exit(2);
 	}
 	const char * cause = NULL;
 	sockfd = -1;
@@ -51,6 +54,9 @@ SSL_objects *  openTLS(char * address, int portnum, int verbose)
 	SSL_CTX * new_context;
 	SSL * ssl_client;
 	int sockfd, err;
+	
+	X509 *cert = NULL;
+	X509_NAME *certname = NULL;
 	
     OpenSSL_add_all_algorithms();
     SSL_load_error_strings();
@@ -90,9 +96,21 @@ SSL_objects *  openTLS(char * address, int portnum, int verbose)
     }
 	if (verbose) printf("SSL/TLS session established\n");
 	
+	// get certificate
+	if ((cert = SSL_get_peer_certificate(ssl_client)) == NULL) {
+		fprintf(stderr, "Error retrieving certificate\n");
+		exit(2);
+	}
+	
+	certname = X509_NAME_new();
+	certname = X509_get_subject_name(cert);
+	
+	// combine into object
 	SSL_objects * params = malloc(sizeof(SSL_objects));
 	params->new_context = new_context;
 	params->ssl_client = ssl_client;
+	params->certname = certname;
+	params->cert = cert;
 	return params;
 }
 
@@ -115,7 +133,7 @@ int write_wrap(int fildes, void *buf, size_t nbyte, char * msg) {
 }
 
 int SSL_write_wrap(SSL *ssl, const void *buf, int num)
-{	
+{
     int wb;
     if ((wb = SSL_write(ssl, buf, num)) <= 0)
     {
