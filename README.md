@@ -6,7 +6,7 @@ By default, the program will try to connect with OpenSSL. To only use TCP, speci
 
 Simply compile with `make` and then run the program as follows
 ```
-usage: ./c-http GET/POST --host=<host> [--port=<#>] [--path=<path>] [--verbose] [--useTCP] [--msg]
+usage: ./c-http GET/POST --host=<host> [--port=<#>] [--path=<path>] [--verbose] [--useTCP] [--msg=<string>]
 ```
 **This is currently a WIP. GET and POST are currently supported.**
 

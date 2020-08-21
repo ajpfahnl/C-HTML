@@ -38,7 +38,7 @@ SSL_CTX * new_context;
 SSL * ssl_client;
 
 void usage_error() {
-	char usage[] = "usage: ./c-http GET/POST --host=<host> [--port=<#>] [--path=<path>] [--verbose] [--useTCP] [--msg]\n";
+	char usage[] = "usage: ./c-http GET/POST --host=<host> [--port=<#>] [--path=<path>] [--verbose] [--useTCP] [--msg=<string>]\n";
 	fprintf(stderr, "%s", usage);
 	exit(1);
 }
