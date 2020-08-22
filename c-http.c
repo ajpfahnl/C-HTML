@@ -28,6 +28,16 @@ int portnum = -1;
 char * path = "/";
 int verbose = 0;
 char * msgPOST = "";
+char * otherHeader = "cache-control: max-age=0\r\n"
+					"user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.135 Safari/537.36\r\n"
+					"accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9\r\n"
+					"sec-fetch-site: same-origin\r\n"
+					"sec-fetch-mode: navigate\r\n"
+					"sec-fetch-user: ?1\r\n"
+					"sec-fetch-dest: document\r\n"
+					"accept-language: en-US,en;q=0.9";
+
+					
 
 // runtime-defined
 static int sockfd;
@@ -77,8 +87,8 @@ struct html_end check_msg_end_condition(char * header) {
 
 void htmlGET() {
 	char * header;
-	header = malloc(strlen(address)+50);
-	sprintf(header, "GET %s HTTP/1.1\r\nHost: %s\r\n\r\n", path, address);
+	header = malloc(strlen(address) + strlen(otherHeader) + 50);
+	sprintf(header, "GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: %s\r\n\r\n", path, address, otherHeader);
 	if (verbose) {
 		printf("%s### Sending request...\n%s", pounds, pounds);
 		printf("%s", header);
@@ -94,12 +104,13 @@ void htmlGET() {
 
 void htmlPOST(char * msg) {
 	char * header;
-	header = malloc(strlen(address)+strlen(msg)+100);
+	header = malloc(strlen(address)+strlen(otherHeader)+strlen(msg)+100);
 	sprintf(header,
 			"POST %s HTTP/1.1\r\nHost: %s\r\n"
 			"Content-Type: text/plain\r\n"
-			"Content-Length: %lu\r\n\r\n%s",
-			path, address, strlen(msg), msg);
+			"Content-Length: %lu\r\n"
+			"%s\r\n\r\n%s",
+			path, address, strlen(msg), otherHeader, msg);
 	if (verbose) {
 		printf("%s### Sending request...\n%s", pounds, pounds);
 		printf("%s\n", header);

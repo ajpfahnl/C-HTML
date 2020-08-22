@@ -88,6 +88,13 @@ SSL_objects *  openTLS(char * address, int portnum, int verbose)
         fprintf(stderr, "Error setting SSL socket fd\n");
         exit(2);
     }
+	
+	if (SSL_set_tlsext_host_name(ssl_client, address) == 0) {
+		// note this is necessary for Server Name Indication (SNI)
+		fprintf(stderr, "Error with SSL_set_tlsext_host_name()\n");
+		exit(2);
+	}
+	
     if ((err = SSL_connect(ssl_client)) != 1)
     {
 		err = SSL_get_error(ssl_client, err);

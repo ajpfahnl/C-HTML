@@ -248,6 +248,11 @@ Content-Length: 1256
 ###############################################
 ```
 
+Some other things to try:
+```
+./c-http GET --host www.google.com --path="/?gws_rd=ssl" --verbose
+```
+
 ## Useful Resources
 
 * http://fm4dd.com/openssl/sslconnect.shtm
