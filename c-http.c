@@ -463,12 +463,12 @@ int main(int argc, char * argv[]) {
                "   number of requests: %d\n"
                "   fastest time (s): %f\n"
                "   slowest time (s): %f\n"
-               "   mean time: %f\n"
-               "   median time: %f\n"
+               "   mean time (s): %f\n"
+               "   median time (s): %f\n"
                "   percentage of successes: 100\n" /* still TODO */
                "   error codes: normal\n" /* still TODO */
-               "   size of smallest response: %d\n"
-               "   size of largest response: %d\n",
+               "   size of smallest response (bytes): %d\n"
+               "   size of largest response (bytes): %d\n",
                requests, min_time, max_time, mean, median, rcount_min_g, rcount_max_g);
     }
     else {
