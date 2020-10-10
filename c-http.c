@@ -58,8 +58,14 @@ int rcount_max;
 
 
 char *pounds = "###############################################\n";
-char usage[] = "usage: ./c-http [GET/POST] --host=<host> [--port=<#>] [--path=<path>] [--verbose] [--useTCP] [--msg=<string>]\n"
-               "       ./c-http --url=<url> --profile=<n>\n";
+char usage[] = "recommended usage: ./c-http --url=<url> [--profile=<#>] [--help]\n"
+                "alternate usage:  ./c-http --host=<host> [--port=<#>] [--path=<path>] [--useTCP]\n"
+                "options common to both:\n"
+                "       [GET/POST]        specify HTTP method (default GET)\n"
+                "       [--verbose]       print out steps taken in a verbose way\n"
+                "       [--msg=<string>]  body of POST message (will be ignored with GET)\n"
+                "       [--profile=<#>]   print metrics for # requests\n"
+                "       [--help]          display this usage/help message\n";
 
 void usage_help() {
     fprintf(stderr, "%s", usage);

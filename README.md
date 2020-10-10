@@ -1,17 +1,22 @@
 # C-HTTP
 
-A C program that performs HTTP requests. The program checks for `Content-Length: <#>`, and assumes `Transfer-Encoding: Chunked` otherwise to determine the end of the message body. Polling is also implemented to check if the connection closes or errors out.
+A C program that performs HTTP requests and prints the full HTTP response to standard output. The program checks for `Content-Length: <#>`, and assumes `Transfer-Encoding: Chunked` otherwise to determine the end of the message body. Polling is also implemented to check if the connection closes or errors out.
 
-By default, the program will try to connect with OpenSSL. To only use TCP, specify `--useTCP`.
-
-Simply compile with `make` and then run the program with either of the following methods:
+Simply compile with `make` and then run the program as follows:
 ```
-usage: ./c-http [GET/POST] --host=<host> [--port=<#>] [--path=<path>] [--verbose] [--useTCP] [--msg=<string>]
-       ./c-http --url=<url> --profile=<n>
+recommended usage: ./c-http --url=<url> [--profile=<#>] [--help]
+alternate usage:  ./c-http --host=<host> [--port=<#>] [--path=<path>] [--useTCP]
+options common to both:
+       [GET/POST]        specify HTTP method (default GET)
+       [--verbose]       print out steps taken in a verbose way
+       [--msg=<string>]  body of POST message (will be ignored with GET)
+       [--profile=<#>]   print metrics
+       [--help]          display this usage/help message
 ```
-For the first method, the program defaults to the `GET` method and the `HTTPS`.
 
-**This is currently a WIP. GET and POST are currently supported.**
+The first method of running the program automatically configures for SSL/TCP or TCP-only based on the URL, and it is the recommended way for running the program. By default, the second method will use `GET` amd `HTTPS`. To only use TCP, specify `--useTCP`.
+
+The `--profile=<#>` option prints out performance metrics for `#` requests for a site. See the example outputs below for the format.
 
 ## Troubleshooting
 
@@ -19,16 +24,14 @@ On MacOS, you might find compilation issues everywhere even after religiously `b
 * `ln -s /usr/local/opt/openssl/include/openssl /usr/local/include`
 * `export LIBRARY_PATH=$LIBRARY_PATH:/usr/local/opt/openssl/lib/`
 
-## Running the Program
+## Metrics with `--profile`
 Running,
 ```
 ./c-http --url https://www.berkshirehathaway.com/message.html --profile 10
 ```
 returns
 ```
-<HTTP header>
-<HTTP Body>
-
+...
 >> Profile:
    number of requests: 10
    fastest time (s): 0.000105
@@ -40,15 +43,12 @@ returns
    size of smallest response: 3515
    size of largest response: 3515
 ```
-
 Another example,
 ```
 ./c-http --url https://cloudfare-general.ajpfahnl.workers.dev/lists --profile 10
 ```
 ```
-<HTTP header>
-<HTTP body>
-
+...
 >> Profile:
    number of requests: 10
    fastest time (s): 0.000140
@@ -60,8 +60,26 @@ Another example,
    size of smallest response: 5
    size of largest response: 4096
 ```
+This time with `google.com`,
+```
+./c-http --url https://www.google.com/ --profile 10   
+```
+```
+...
+>> Profile:
+   number of requests: 10
+   fastest time (s): 0.001364
+   slowest time (s): 0.004120
+   mean time: 0.002678
+   median time: 0.003033
+   percentage of successes: 100
+   error codes: None
+   size of smallest response: 5
+   size of largest response: 4096
+```
 
-As another example, running
+## Running with `--verbose`
+As an example, running
 ```
 ./c-http --url http://www.berkshirehathaway.com/message.html --verbose
 ```
