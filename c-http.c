@@ -5,7 +5,7 @@
 #include <getopt.h>
 #include <poll.h>
 #include <openssl/x509.h>
-#include "common.h"
+#include "commonio.h"
 #include <time.h>
 
 #define BUFSIZE 4096
