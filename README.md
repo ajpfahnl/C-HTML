@@ -1,4 +1,5 @@
 # C-HTTP
+[GitHub link](https://github.com/ajpfahnl/C-HTTP)
 
 A C program that performs HTTP requests and prints the full HTTP response to standard output. The program checks for `Content-Length: <#>`, and assumes `Transfer-Encoding: Chunked` otherwise to determine the end of the message body. Polling is also implemented to check if the connection closes or errors out.
 
