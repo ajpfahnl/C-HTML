@@ -6,10 +6,12 @@
 #include <poll.h>
 #include <openssl/x509.h>
 #include "common.h"
+#include <time.h>
 
 #define BUFSIZE 4096
 #define SAVESIZE 20
 
+void usage_help();
 void usage_error();
 void check_method();
 struct html_end {
@@ -22,6 +24,9 @@ void htmlresponse();
 void getopts(int argc, char * argv[]);
 
 // user-defined
+int profile = 0;
+int profile_set = 0;
+char * url = NULL;
 char * http_request = NULL;
 char * address;
 int portnum = -1;
@@ -47,9 +52,22 @@ int useTLS = 1;
 SSL_CTX * new_context;
 SSL * ssl_client;
 
+// for performance measurement
+int rcount_min;
+int rcount_max;
+
+
+char *pounds = "###############################################\n";
+char usage[] = "usage: ./c-http [GET/POST] --host=<host> [--port=<#>] [--path=<path>] [--verbose] [--useTCP] [--msg=<string>]\n"
+               "       ./c-http --url=<url> --profile=<n>\n";
+
+void usage_help() {
+    fprintf(stderr, "%s", usage);
+    exit(0);
+}
+
 void usage_error() {
-	char usage[] = "usage: ./c-http GET/POST --host=<host> [--port=<#>] [--path=<path>] [--verbose] [--useTCP] [--msg=<string>]\n";
-	fprintf(stderr, "%s", usage);
+    fprintf(stderr, "%s", usage);
 	exit(1);
 }
 
@@ -88,6 +106,10 @@ struct html_end check_msg_end_condition(char * header) {
 void htmlGET() {
 	char * header;
 	header = malloc(strlen(address) + strlen(otherHeader) + 50);
+    if (header == NULL) {
+        fprintf(stderr, "Error with malloc(): %s\n", strerror(errno));
+        exit(1);
+    }
 	sprintf(header, "GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: %s\r\n\r\n", path, address, otherHeader);
 	if (verbose) {
 		printf("%s### Sending request...\n%s", pounds, pounds);
@@ -105,6 +127,10 @@ void htmlGET() {
 void htmlPOST(char * msg) {
 	char * header;
 	header = malloc(strlen(address)+strlen(otherHeader)+strlen(msg)+100);
+    if (header == NULL) {
+        fprintf(stderr, "Error with malloc(): %s\n", strerror(errno));
+        exit(1);
+    }
 	sprintf(header,
 			"POST %s HTTP/1.1\r\nHost: %s\r\n"
 			"Content-Type: text/plain\r\n"
@@ -155,6 +181,14 @@ void htmlresponse() {
 			rcount = SSL_read_wrap(ssl_client, buf, sizeof(buf));
 		else
 			rcount = read_wrap(sockfd, buf, sizeof(buf), "from socket");
+        
+        // performance metrics
+        if ((rcount_min == -1) || (rcount < rcount_min)) {
+            rcount_min = rcount;
+        }
+        if (rcount > rcount_max) {
+            rcount_max = rcount;
+        }
 		
 		// check header
 		if (firstpass) {
@@ -234,6 +268,9 @@ static struct option longopts[] =
 	{"path", required_argument, NULL, 'p'},
 	{"useTCP", no_argument, NULL, 't'},
 	{"msg", required_argument, NULL, 'm'},
+    {"url", required_argument, NULL, 'u'},
+    {"help", no_argument, NULL, 'x'},
+    {"profile", required_argument, NULL, 'r'},
 	{NULL,0,NULL,0}
 };
 
@@ -261,15 +298,53 @@ void getopts(int argc, char * argv[]) {
 			case 'm':
 				msgPOST = optarg;
 				break;
+            case 'u':
+                url = optarg;
+                break;
+            case 'x':
+                usage_help();
+                break;
+            case 'r':
+                profile = atoi(optarg);
+                profile_set = 1;
+                break;
 			default:
 				usage_error();
 		}
 	}
-
-	if (!(host_set)) {
+	if (!(host_set) && (url == NULL)) {
 		usage_error();
 	}
 	
+    // parse url if option specified
+    if (url) {
+        int it = 5+3;
+        if (strncmp("https", url, 5) != 0) {
+            useTLS = 0;
+            it = 4+3;
+        }
+        char * url_host = malloc(strlen(url));
+        char * url_path = malloc(strlen(url));
+        if ((url_path == NULL) || (url_host == NULL)) {
+            fprintf(stderr, "Error with malloc(): %s\n", strerror(errno));
+            exit(1);
+        }
+        int url_it = 0;
+        while (url[it] != '/') {
+            url_host[url_it] = url[it];
+            url_it++;
+            it++;
+        }
+        url_it = 0;
+        while (url[it] != '\0') {
+            url_path[url_it] = url[it];
+            url_it++;
+            it++;
+        }
+        address = url_host;
+        path = url_path;
+    }
+    
 	if (useTLS && (portnum < 0)) {
 		portnum = 443; // HTTPS
 	}
@@ -289,8 +364,13 @@ void getopts(int argc, char * argv[]) {
     }
 	
 	if (http_request == NULL) {
-		usage_error();
+        http_request = "GET";
 	}
+}
+
+// for use with finding the median
+int cmpfunc (const void * a, const void * b) {
+   return ( *(double*)a - *(double*)b );
 }
 
 int main(int argc, char * argv[]) {
@@ -324,14 +404,76 @@ int main(int argc, char * argv[]) {
 		}
 	}
 	
-	// perform request
-	if (strcmp(http_request, "GET") == 0) {
-		htmlGET();
-	}
-	if (strcmp(http_request, "POST") == 0) {
-		htmlPOST(msgPOST);
-	}
-	
+    // requesting
+    if (profile > 0) {
+        // perform GET request with metrics on
+        int requests = profile;
+        double * request_time = malloc(sizeof(double) * requests);
+        // int * request_successes = malloc(sizeof(int) * requests); /* still TODO */
+        if (request_time == NULL) {
+            fprintf(stderr, "Error with malloc(): %s\n", strerror(errno));
+            exit(1);
+        }
+        double max_time = -1;
+        double min_time = -1;
+        double mean = 0;
+        int rcount_min_g = -1;
+        int rcount_max_g = 0;
+        clock_t start;
+        int i;
+        for (i=0; i<requests; i++) {
+            rcount_min = -1;
+            rcount_max = 0;
+            start = clock();
+            
+            htmlGET();
+            
+            request_time[i] = ((double) (clock() - start)) / CLOCKS_PER_SEC;
+            if ((max_time == -1) || (request_time[i] > max_time)) {
+                max_time = request_time[i];
+            }
+            if ((min_time == -1) || (request_time[i] < min_time)) {
+                min_time = request_time[i];
+            }
+            if ((rcount_min_g == -1) || (rcount_min < rcount_min_g)) {
+                rcount_min_g = rcount_min;
+            }
+            if (rcount_max > rcount_max_g) {
+                rcount_max_g = rcount_max;
+            }
+            mean += request_time[i];
+        }
+        mean /= requests;
+        
+        // find median
+        qsort(request_time, requests, sizeof(double), cmpfunc);
+        int n = (requests) / 2 - 1;
+        double median = request_time[n];
+        if ((requests % 2 != 0) && (requests > 2)) {
+            median = (median + request_time[n+1])/2;
+        }
+        
+        printf("\n>> Profile:\n"
+               "   number of requests: %d\n"
+               "   fastest time (s): %f\n"
+               "   slowest time (s): %f\n"
+               "   mean time: %f\n"
+               "   median time: %f\n"
+               "   percentage of successes: 100\n" /* still TODO */
+               "   error codes: normal\n" /* still TODO */
+               "   size of smallest response: %d\n"
+               "   size of largest response: %d\n",
+               requests, min_time, max_time, mean, median, rcount_min_g, rcount_max_g);
+    }
+    else {
+        // perform request
+        if (strcmp(http_request, "GET") == 0) {
+            htmlGET();
+        }
+        if (strcmp(http_request, "POST") == 0) {
+            htmlPOST(msgPOST);
+        }
+    }
 	// end
 	if (verbose) {
 		printf("### Program exiting...\n%s", pounds);

@@ -9,8 +9,6 @@
 #include <unistd.h>
 #include <openssl/ssl.h>
 
-char *pounds = "###############################################\n";
-
 int openTCP(char * address, int portnum)
 {
 	char portnumstr[256];
